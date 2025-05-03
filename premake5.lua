@@ -1,10 +1,10 @@
 -- premake5.lua
-workspace "RayTracing"
+workspace "PathTracing"
    architecture "x64"
    configurations { "Debug", "Release", "Dist","ReleaseGPU" }
-   startproject "RayTracing"
+   startproject "PathTracing"
 
 outputdir = "%{cfg.buildcfg}-%{cfg.system}-%{cfg.architecture}"
 include "Walnut/WalnutExternal.lua"
 
-include "RayTracing"
+include "PathTracing"
