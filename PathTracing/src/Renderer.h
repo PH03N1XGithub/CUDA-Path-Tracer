@@ -22,6 +22,7 @@ public:
 	{
 		bool Accumulate = true;
 		bool SkyBox = false;
+		int maxBounces = 4, samplesPerPixel = 50;
 	};
 public:
 	Renderer() = default;

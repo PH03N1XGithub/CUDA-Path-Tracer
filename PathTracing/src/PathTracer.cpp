@@ -24,6 +24,34 @@ public:
 
 	virtual void OnUIRender() override
 	{
+		ImGui::StyleColorsDark();
+		ImGui::GetStyle().Colors[ImGuiCol_Text] = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);  // White text
+		ImGui::GetStyle().Colors[ImGuiCol_Border] = ImVec4(0.3f, 0.3f, 0.0f, 1.0f);  // Dark borders
+		ImGui::GetStyle().Colors[ImGuiCol_Button] = ImVec4(0.2f, 0.6f, 0.0f, 1.0f);    // Custom button color
+		ImGui::GetStyle().Colors[ImGuiCol_ButtonHovered] = ImVec4(0.3f, 0.7f, 0.0f, 1.0f); // Hovered button color
+		ImGui::GetStyle().Colors[ImGuiCol_ButtonActive] = ImVec4(0.4f, 0.8f, 0.0f, 1.0f); // Active button color
+		ImGui::GetStyle().Colors[ImGuiCol_CheckMark] = ImVec4(0.4f, 0.8f, 0.0f, 1.0f); // Active button color
+		ImGui::GetStyle().Colors[ImGuiCol_FrameBgHovered] = ImVec4(0.4f, 0.8f, 0.0f, 1.0f); // Active button color
+		ImGui::GetStyle().Colors[ImGuiCol_FrameBgActive] = ImVec4(0.4f, 0.8f, 0.0f, 1.0f); // Active button color
+		ImGui::GetStyle().Colors[ImGuiCol_Separator] = ImVec4(0.2f, 0.2f, 0.0f, 1.0f);  // Separator color
+		ImGui::GetStyle().Colors[ImGuiCol_SeparatorHovered] = ImVec4(0.4f, 0.4f, 0.0f, 1.0f); // Separator hover color
+		ImGui::GetStyle().Colors[ImGuiCol_SeparatorActive] = ImVec4(0.6f, 0.6f, 0.0f, 1.0f); // Separator active color
+		ImGui::GetStyle().Colors[ImGuiCol_Header] = ImVec4(0.2f, 0.5f, 0.0f, 1.0f); // Header background color
+		ImGui::GetStyle().Colors[ImGuiCol_HeaderHovered] = ImVec4(0.3f, 0.6f, 0.0f, 1.0f); // Hovered header color
+		ImGui::GetStyle().Colors[ImGuiCol_HeaderActive] = ImVec4(0.4f, 0.7f, 0.0f, 1.0f);  // Active header color
+		ImGui::GetStyle().Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);  // Input box background
+		ImGui::GetStyle().Colors[ImGuiCol_Tab] = ImVec4(0.1f, 0.1f, 0.1f, 1.0f);  
+		ImGui::GetStyle().Colors[ImGuiCol_TabActive] = ImVec4(0.2f, 0.2f, 0.2f, 1.0f);  
+		ImGui::GetStyle().Colors[ImGuiCol_TabHovered] = ImVec4(0.2f, 0.2f, 0.2f, 1.0f);  
+		ImGui::GetStyle().Colors[ImGuiCol_TabUnfocused] = ImVec4(0.1f, 0.1f, 0.1f, 1.0f);  
+		ImGui::GetStyle().Colors[ImGuiCol_TabUnfocusedActive] = ImVec4(0.2f, 0.2f, 0.2f, 1.0f);  
+		ImGui::GetStyle().Colors[ImGuiCol_MenuBarBg] = ImVec4(0.1f, 0.1f, 0.1f, 1.0f);  
+		ImGui::GetStyle().Colors[ImGuiCol_TitleBgActive] = ImVec4(0.1f, 0.1f, 0.1f, 1.0f);  
+		ImGui::GetStyle().Colors[ImGuiCol_WindowBg].w = 0.3f;  // Full transparency
+		ImGui::GetStyle().WindowRounding = 5.0f; // Rounded window corners
+		ImGui::GetStyle().FrameRounding = 3.0f;  // Rounded frame corners for buttons, inputs, etc.
+
+
 		ImGui::Begin("Settings");
 		ImGui::Text("FPS: %.3f", 1000/m_LastRenderTime);
 		ImGui::Text("Last render: %.3fms", m_LastRenderTime);
@@ -45,7 +73,12 @@ public:
 		{
 			Material& red_sphere = m_Scene.Materials.emplace_back();
 		}
-		
+
+		ImGui::InputInt("Max Bounce", &m_Renderer.GetSettings().maxBounces);
+		if (ImGui::InputInt("SPP", &m_Renderer.GetSettings().samplesPerPixel) && m_Renderer.GetSettings().samplesPerPixel == 0)
+		{
+			m_Renderer.GetSettings().samplesPerPixel = 1;
+		}
 		ImGui::Checkbox("Accumulate", &m_Renderer.GetSettings().Accumulate);
 		ImGui::Checkbox("SkyBox", &m_Renderer.GetSettings().SkyBox);
 		
@@ -53,7 +86,7 @@ public:
 			m_Renderer.ResetFrameIndex();
 
 		ImGui::End();
-
+		
 		ImGui::Begin("Scene");
 		for (size_t i = 0; i < m_Scene.Spheres.size(); i++)
 		{

@@ -85,7 +85,9 @@ void Renderer::Render(const Scene& scene, const Camera& camera)
 		static_cast<int>(numSpheres),
 		cudaCamera,
 		m_Settings.Accumulate,
-		m_Settings.SkyBox
+		m_Settings.SkyBox,
+		m_Settings.maxBounces,
+		m_Settings.samplesPerPixel
 	);
 	m_LastRayTraceTime = timer.ElapsedMillis();
 #else

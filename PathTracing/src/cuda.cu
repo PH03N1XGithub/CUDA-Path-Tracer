@@ -81,7 +81,9 @@ extern "C" __global__ void RayTraceKernel(
     int height,
     CudaCamera camera,
     int frameIndex,
-    bool bSkyBox
+    bool bSkyBox,
+    int maxBounce,
+    int SPP
 ) {
     int x = blockIdx.x * blockDim.x + threadIdx.x;
     int y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -89,8 +91,8 @@ extern "C" __global__ void RayTraceKernel(
 
     int idx = y * width + x;
 
-    const int samplesPerPixel = 10;
-    int maxBounces = 5;
+    int samplesPerPixel = SPP;
+    int maxBounces = maxBounce;
 
     float3 colorSum = make_float3(0.0f,0.0f,0.0f);
 
@@ -176,10 +178,11 @@ extern "C" __global__ void RayTraceKernel(
 // ----------------------------------------------------------------------------------
 static int frameIndex = 1;
 void RunCudaRayTrace(uint32_t* hostImage, int width, int height, const CudaSphere* hostSpheres,
-    const CudaMaterial* hostMaterials, int numSpheres, const CudaCamera& camera, bool bAccumulate ,bool bSkyBox) {
+    const CudaMaterial* hostMaterials, int numSpheres, const CudaCamera& camera, bool bAccumulate ,bool bSkyBox,int maxBounces, int samplesPerPixel) {
     static uint32_t* devImage = nullptr;
     static float3* devAccumulation = nullptr;
     static int lastWidth = 0, lastHeight = 0;
+    int devMaxBounce = maxBounces, devSamplesPerPixel = samplesPerPixel;
     CudaSphere* devSpheres = nullptr;
     CudaMaterial* devMaterials = nullptr;
 
@@ -224,7 +227,9 @@ void RunCudaRayTrace(uint32_t* hostImage, int width, int height, const CudaSpher
         height,
         CudaCamera,
         frameIndex,
-        bSkyBox
+        bSkyBox,
+        maxBounces,
+        samplesPerPixel
     );
     
 
