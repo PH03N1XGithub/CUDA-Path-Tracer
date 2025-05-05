@@ -48,8 +48,15 @@ private:
 	glm::vec2 m_LastMousePosition{ 0.0f, 0.0f };
 
 	uint32_t m_ViewportWidth = 0, m_ViewportHeight = 0;
+	float m_Aperture = 0.1f;         // Controls blur intensity
+	float m_FocusDistance = 10.0f;   // Distance to the focus plane
 
 public:
+
+	float& GetAperture()  { return m_Aperture; }
+	float& GetFocusDistance()  { return m_FocusDistance; }
+	
+
 	static CudaCamera GetGetCudaCamera(const Camera& camera, uint32_t width, uint32_t height) {
 		CudaCamera cudaCamera;
 		glm::mat4 view = camera.GetView();
@@ -67,6 +74,8 @@ public:
 		cudaCamera.AspectRatio = static_cast<float>(width) / static_cast<float>(height);
 		cudaCamera.NearClip = camera.m_NearClip;
 		cudaCamera.FarClip = camera.m_FarClip;
+		cudaCamera.Aperture = camera.m_Aperture;
+		cudaCamera.FocusDistance = camera.m_FocusDistance;
 
 		return cudaCamera;
 	}

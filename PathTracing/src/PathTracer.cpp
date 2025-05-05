@@ -11,6 +11,7 @@
 
 using namespace Walnut;
 
+
 class ExampleLayer : public Walnut::Layer
 {
 public:
@@ -50,90 +51,126 @@ public:
 		ImGui::GetStyle().Colors[ImGuiCol_WindowBg].w = 0.3f;  // Full transparency
 		ImGui::GetStyle().WindowRounding = 5.0f; // Rounded window corners
 		ImGui::GetStyle().FrameRounding = 3.0f;  // Rounded frame corners for buttons, inputs, etc.
-
-
-		ImGui::Begin("Settings");
-		ImGui::Text("FPS: %.3f", 1000/m_LastRenderTime);
-		ImGui::Text("Last render: %.3fms", m_LastRenderTime);
-		ImGui::Text((m_Renderer.m_ProsesUnit + " Time: %.3fms").c_str(), m_Renderer.m_LastRayTraceTime);
-		ImGui::Text("Last SetFrameData: %.3fms", m_Renderer.m_LastSetDataTime);
-		ImGui::Text("Accumulation Data: %d", m_Renderer.m_FrameIndex);
-		glm::vec3 cameraDir = m_Camera.GetDirection();
-		glm::vec3 cameraPos = m_Camera.GetPosition();
-		ImGui::Text("Camera direction: (%.2f, %.2f, %.2f)",cameraDir.x, cameraDir.y, cameraDir.z);
-		ImGui::Text("Camera Position: (%.2f, %.2f, %.2f)",cameraPos.x, cameraPos.y, cameraPos.z);
-
 		
-		if (ImGui::Button("Add Sphere"))
-		{
-			constexpr Sphere sphere;
-			m_Scene.Spheres.push_back(sphere);
-		}
-		if (ImGui::Button("Add Material"))
-		{
-			Material& red_sphere = m_Scene.Materials.emplace_back();
-		}
-
-		ImGui::InputInt("Max Bounce", &m_Renderer.GetSettings().maxBounces);
-		if (ImGui::InputInt("SPP", &m_Renderer.GetSettings().samplesPerPixel) && m_Renderer.GetSettings().samplesPerPixel == 0)
-		{
-			m_Renderer.GetSettings().samplesPerPixel = 1;
-		}
-		ImGui::Checkbox("Accumulate", &m_Renderer.GetSettings().Accumulate);
-		ImGui::Checkbox("SkyBox", &m_Renderer.GetSettings().SkyBox);
 		
-		if (ImGui::Button("Reset"))
-			m_Renderer.ResetFrameIndex();
-
-		ImGui::End();
-		
-		ImGui::Begin("Scene");
-		for (size_t i = 0; i < m_Scene.Spheres.size(); i++)
+		if (false)
 		{
-			ImGui::PushID(i);
-
-			Sphere& sphere = m_Scene.Spheres[i];
-			ImGui::Text("Sphere %d", i);
-			if (ImGui::DragFloat3("Position", glm::value_ptr(sphere.Position), 0.1f) ||
-				ImGui::DragFloat("Radius", &sphere.Radius, 0.1f) ||
-				ImGui::DragInt("Material", &sphere.MaterialIndex, 1.0f, 0, (int)m_Scene.Materials.size() - 1))
-			{
-				m_Renderer.ResetFrameIndex();
-			}
+			ImGui::Begin("Scene");
 			
-
-			ImGui::Separator();
-
-			ImGui::PopID();
+			ImGui::End();
 		}
-		
-		ImGui::Separator();
-		ImGui::Separator();
-		
-		for (size_t i = 0; i < m_Scene.Materials.size(); i++)
+
+		if (ImGui::BeginMenuBar())
 		{
-			ImGui::PushID(i);
-
-			Material& material = m_Scene.Materials[i];
-			ImGui::Text("Material %d", i);
-			if (ImGui::ColorEdit3("Albedo", glm::value_ptr(material.Albedo))||
-				ImGui::DragFloat("Roughness", &material.Roughness, 0.05f, 0.0f, 1.0f)||
-				ImGui::DragFloat("Metallic", &material.Metallic, 0.05f, 0.0f, 1.0f)||
-				ImGui::ColorEdit3("Emission Color", glm::value_ptr(material.EmissionColor))||
-				ImGui::DragFloat("Emission Power", &material.EmissionPower, 0.05f, 0.0f, FLT_MAX))
+			// Begin a menu within the menu bar
+			if (ImGui::BeginMenu("Settings")) // "asd" is the name of the menu
 			{
-				m_Renderer.ResetFrameIndex();
-			}
+				
+				ImGui::Text("FPS: %.3f", 1000/m_LastRenderTime);
+				ImGui::Text("Last render: %.3fms", m_LastRenderTime);
+				ImGui::Text((m_Renderer.m_ProsesUnit + " Time: %.3fms").c_str(), m_Renderer.m_LastRayTraceTime);
+				ImGui::Text("CPU: %.3fms", m_Renderer.m_LastSetDataTime);
+				ImGui::Text("Accumulation Data: %d", m_Renderer.m_FrameIndex);
+				glm::vec3 cameraDir = m_Camera.GetDirection();
+				glm::vec3 cameraPos = m_Camera.GetPosition();
+				ImGui::Text("Camera direction: (%.2f, %.2f, %.2f)",cameraDir.x, cameraDir.y, cameraDir.z);
+				ImGui::Text("Camera Position: (%.2f, %.2f, %.2f)",cameraPos.x, cameraPos.y, cameraPos.z);
+				ImGui::Text("Object Count: %d", m_Scene.Spheres.size());
 			
+				if (ImGui::Button("Add Sphere"))
+				{
+					constexpr Sphere sphere;
+					m_Scene.Spheres.push_back(sphere);
+				}
+				if (ImGui::Button("Add Material"))
+				{
+					Material& red_sphere = m_Scene.Materials.emplace_back();
+				}
+			
+				ImGui::InputInt("Max Bounce", &m_Renderer.GetSettings().maxBounces);
+			
+				if (ImGui::InputInt("SPP", &m_Renderer.GetSettings().samplesPerPixel) && m_Renderer.GetSettings().samplesPerPixel == 0)
+				{
+					m_Renderer.GetSettings().samplesPerPixel = 1;
+				}
+				if (ImGui::DragFloat("Aperture",&m_Camera.GetAperture(),0.1f,0,FLT_MAX))
+				{
+					m_Renderer.ResetFrameIndex();
+				}
+				if (ImGui::DragFloat("FocusDistance", &m_Camera.GetFocusDistance(),0.1f,0,FLT_MAX))
+				{
+					m_Renderer.ResetFrameIndex();
+				}
+			
+				ImGui::Checkbox("Accumulate", &m_Renderer.GetSettings().Accumulate);
+				ImGui::Checkbox("SkyBox", &m_Renderer.GetSettings().SkyBox);
+			
+				if (ImGui::Button("Reset"))
+					m_Renderer.ResetFrameIndex();
 
-			ImGui::Separator();
+				ImGui::EndMenu();
+			}
+			if (ImGui::BeginMenu("Scene Inspector"))
+			{
 
-			ImGui::PopID();
+				ImVec2 size = ImVec2(430, 450);
+				ImGui::BeginChild("Scene Inspector", size, false);
+
+				
+
+				
+				
+				for (size_t i = 0; i < m_Scene.Spheres.size(); i++)
+				{
+					ImGui::PushID(i);
+	
+					Sphere& sphere = m_Scene.Spheres[i];
+					ImGui::Text("Sphere %d", i);
+					if (ImGui::DragFloat3("Position", glm::value_ptr(sphere.Position), 0.1f) ||
+						ImGui::DragFloat("Radius", &sphere.Radius, 0.1f) ||
+						ImGui::DragInt("Material", &sphere.MaterialIndex, 1.0f, 0, (int)m_Scene.Materials.size() - 1))
+					{
+						m_Renderer.ResetFrameIndex();
+					}
+				
+	
+					ImGui::Separator();
+	
+					ImGui::PopID();
+				}
+		
+				ImGui::Separator();
+				ImGui::Separator();
+		
+				for (size_t i = 0; i < m_Scene.Materials.size(); i++)
+				{
+					ImGui::PushID(i);
+					Material& material = m_Scene.Materials[i];
+					ImGui::Text("Material %d", i);
+					if (ImGui::ColorEdit3("Albedo", glm::value_ptr(material.Albedo))||
+						ImGui::DragFloat("Roughness", &material.Roughness, 0.05f, 0.0f, 1.0f)||
+						ImGui::DragFloat("Metallic", &material.Metallic, 0.05f, 0.0f, 1.0f)||
+						ImGui::ColorEdit3("Emission Color", glm::value_ptr(material.EmissionColor))||
+						ImGui::DragFloat("Emission Power", &material.EmissionPower, 0.05f, 0.0f, FLT_MAX))
+					{
+						m_Renderer.ResetFrameIndex();
+					}
+					
+					ImGui::Separator();
+					ImGui::PopID();
+				}
+				ImGui::EndChild();
+				ImGui::EndMenu();
+			}
+			ImGui::Text("FPS: %.f", 1000/m_LastRenderTime); // Display FPS in the menu bar
+			// End the menu bar
+			ImGui::EndMenuBar();
 		}
-		ImGui::End();
+
+		
 
 		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
-		ImGui::Begin("Viewport");
+		ImGui::Begin("Viewport", nullptr,ImGuiDockNodeFlags_AutoHideTabBar);
 
 		m_ViewportWidth = ImGui::GetContentRegionAvail().x;
 		m_ViewportHeight = ImGui::GetContentRegionAvail().y;
@@ -166,6 +203,8 @@ private:
 
 	float m_LastRenderTime = 0.0f;
 };
+
+
 
 Walnut::Application* Walnut::CreateApplication(int argc, char** argv)
 {

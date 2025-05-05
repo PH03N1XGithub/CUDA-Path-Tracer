@@ -11,7 +11,7 @@
 #define WL_RENDERER_PROSES_UNIT "GPU"
 #else
 #ifdef WL_RELEASE
-#define WL_RENDERER_PROSES_UNIT "CPU"
+#define WL_RENDERER_PROSES_UNIT "CPU Render"
 #endif
 #endif
 
@@ -21,8 +21,8 @@ public:
 	struct Settings
 	{
 		bool Accumulate = true;
-		bool SkyBox = false;
-		int maxBounces = 4, samplesPerPixel = 50;
+		bool SkyBox = true;
+		int maxBounces = 3, samplesPerPixel = 1;
 	};
 public:
 	Renderer() = default;

@@ -40,4 +40,7 @@ struct CudaCamera {
 	float AspectRatio;
 	float NearClip;
 	float FarClip;
+	float Aperture = 0.1f;         // Controls blur intensity
+	float FocusDistance = 10.0f;   // Distance to the focus plane
+
 };

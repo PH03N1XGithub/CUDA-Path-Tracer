@@ -28,6 +28,20 @@ namespace Walnut {
 		glfwGetCursorPos(windowHandle, &x, &y);
 		return { (float)x, (float)y };
 	}
+	glm::vec2 Input::GetMouseScroll()
+	{
+		GLFWwindow* windowHandle = Application::Get().GetWindowHandle();
+		glfwSetScrollCallback(windowHandle, Walnut::Input::GLFWScrollCallback);
+		glm::vec2 delta = s_MouseScroll;
+		s_MouseScroll = glm::vec2(0.0f); // Reset after read
+		return delta;
+	}
+
+	void Input::GLFWScrollCallback(GLFWwindow* window, double xOffset, double yOffset)
+	{
+		window = Application::Get().GetWindowHandle();
+		s_MouseScroll = glm::vec2((float)xOffset, (float)yOffset);
+	}
 
 	void Input::SetCursorMode(CursorMode mode)
 	{

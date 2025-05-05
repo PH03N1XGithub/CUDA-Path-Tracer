@@ -7,6 +7,51 @@
 #include <math_functions.h>
 #include <vector_types.h> 
 
+struct CudaCube {
+    float3 Position;     // Center of the cube
+    float3 HalfSize;     // Half-extent in each direction (axis-aligned box)
+    int MaterialIndex;
+};
+__device__ void my_swap(float& a, float& b) {
+    float temp = a;
+    a = b;
+    b = temp;
+}
+
+__device__ bool IntersectCube(const CudaRay& ray, const CudaCube& cube, float& tHit) {
+    float3 min = cube.Position - cube.HalfSize;
+    float3 max = cube.Position + cube.HalfSize;
+
+    float tMin = (min.x - ray.Origin.x) / ray.Direction.x;
+    float tMax = (max.x - ray.Origin.x) / ray.Direction.x;
+
+    if (tMin > tMax) my_swap(tMin, tMax);
+
+    float tyMin = (min.y - ray.Origin.y) / ray.Direction.y;
+    float tyMax = (max.y - ray.Origin.y) / ray.Direction.y;
+
+    if (tyMin > tyMax) my_swap(tyMin, tyMax);
+
+    if ((tMin > tyMax) || (tyMin > tMax)) return false;
+
+    if (tyMin > tMin) tMin = tyMin;
+    if (tyMax < tMax) tMax = tyMax;
+
+    float tzMin = (min.z - ray.Origin.z) / ray.Direction.z;
+    float tzMax = (max.z - ray.Origin.z) / ray.Direction.z;
+
+    if (tzMin > tzMax) my_swap(tzMin, tzMax);
+
+    if ((tMin > tzMax) || (tzMin > tMax)) return false;
+
+    if (tzMin > tMin) tMin = tzMin;
+    if (tzMax < tMax) tMax = tzMax;
+
+    tHit = tMin;
+    return tHit > 0;
+}
+
+
 // ----------------------------------------------------------------------------------
 // Hit computations
 // ----------------------------------------------------------------------------------
@@ -40,7 +85,7 @@ __device__ CudaHitPayload Miss(const CudaRay& ray)
 // ----------------------------------------------------------------------------------
 // Ray-sphere intersection
 // ----------------------------------------------------------------------------------
-__device__ CudaHitPayload TraceRay(const CudaRay& ray, const CudaSphere* spheres, int numSpheres) {
+__device__ CudaHitPayload TraceRay(const CudaRay& ray, const CudaSphere* spheres, int numSpheres,const CudaCube* cubes, int numCubes) {
     CudaHitPayload payload;
     payload.HitDistance = -1.0f;
     payload.ObjectIndex = -1;
@@ -62,10 +107,48 @@ __device__ CudaHitPayload TraceRay(const CudaRay& ray, const CudaSphere* spheres
             payload.ObjectIndex = i;
         }
     }
+    // Cube hits
+    for (int i = 0; i < numCubes; i++) {
+        float t;
+        if (IntersectCube(ray, cubes[i], t)) {
+            if (t > 0.0f && (payload.HitDistance < 0.0f || t < payload.HitDistance)) {
+                payload.HitDistance = t;
+                payload.ObjectIndex = 10000 + i; // Offset index so you know it’s a cube
+            }
+        }
+    }
+
     if (payload.ObjectIndex < 0)
         return Miss(ray);
 
-    return ComputeHit(ray, payload.HitDistance, payload.ObjectIndex, spheres);
+    // Differentiate handling for spheres/cubes
+    if (payload.ObjectIndex < 10000) {
+        return ComputeHit(ray, payload.HitDistance, payload.ObjectIndex, spheres);
+    } else {
+        int cubeIdx = payload.ObjectIndex - 10000;
+        const CudaCube& cube = *cubes;
+        CudaHitPayload hit;
+        hit.HitDistance = payload.HitDistance;
+        hit.ObjectIndex = payload.ObjectIndex;
+        hit.WorldPosition = ray.Origin + ray.Direction * hit.HitDistance;
+
+        // Compute normal based on which face was hit (not exact but fast)
+        float3 localPos = hit.WorldPosition - cube.Position;
+        localPos.x = fabs(localPos.x);
+        localPos.y = fabs(localPos.y);
+        localPos.z = fabs(localPos.z);
+        float3 n;
+        float3 d = localPos - cube.HalfSize;
+        if (d.x > d.y && d.x > d.z)
+            n = make_float3(signbit(localPos.x) ? -1.0f : 1.0f, 0.0f, 0.0f);
+        else if (d.y > d.z)
+            n = make_float3(0.0f, signbit(localPos.y) ? -1.0f : 1.0f, 0.0f);
+        else
+            n = make_float3(0.0f, 0.0f, signbit(localPos.z) ? -1.0f : 1.0f);
+
+        hit.WorldNormal = n;
+        return hit;
+    }
 }
 
 // ----------------------------------------------------------------------------------
@@ -83,7 +166,8 @@ extern "C" __global__ void RayTraceKernel(
     int frameIndex,
     bool bSkyBox,
     int maxBounce,
-    int SPP
+    int SPP,
+    const CudaCube* cubes
 ) {
     int x = blockIdx.x * blockDim.x + threadIdx.x;
     int y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -93,8 +177,14 @@ extern "C" __global__ void RayTraceKernel(
 
     int samplesPerPixel = SPP;
     int maxBounces = maxBounce;
+    /*if (frameIndex == 1)
+    {
+        samplesPerPixel = 1;
+    }*/
 
     float3 colorSum = make_float3(0.0f,0.0f,0.0f);
+
+
 
     for (int s = 0; s < samplesPerPixel; s++) {
         uint32_t seed = idx * 9781 + frameIndex * 684 + s * 917;
@@ -117,19 +207,28 @@ extern "C" __global__ void RayTraceKernel(
 
         float3 direction = normalize(px * right + py * up + forward);
 
+
+        float3 randomInLens =  RandomInUnitSphere(seed) * camera.Aperture * 0.5f;
+        float3 offset = right * randomInLens.x + up * randomInLens.y;
+
+        // Compute the point on the focus plane
+        float3 target = camera.Position + direction * camera.FocusDistance;
+
         CudaRay ray;
-        ray.Origin = camera.Position;
-        ray.Direction = direction;
+        ray.Origin = camera.Position + offset;
+        ray.Direction = normalize(target - ray.Origin);
 
         float3 light = make_float3(0.0f,0.0f,0.0f);
         float3 contrib = make_float3(1.0f,1.0f,1.0f);
 
         for (int bounce = 0; bounce < maxBounces; bounce++) {
-            CudaHitPayload hit = TraceRay(ray, spheres, numSpheres);
+            CudaHitPayload hit = TraceRay(ray, spheres, numSpheres,cubes,1);
             if (hit.HitDistance < 0.0f) {
-                light += contrib * make_float3(0.6f, 0.7f, 0.9f) * bSkyBox; // Skybox
+                light += contrib * make_float3(0.8f, 0.8f, 0.9f) * bSkyBox; // Skybox
                 break;
             }
+            
+            
 
             const CudaSphere& sphere = spheres[hit.ObjectIndex];
             const CudaMaterial& mat = materials[sphere.MaterialIndex];
@@ -192,11 +291,16 @@ void RunCudaRayTrace(uint32_t* hostImage, int width, int height, const CudaSpher
     size_t sphBytes = static_cast<size_t>(numSpheres) * sizeof(CudaSphere);
     size_t matBytes = static_cast<size_t>(numSpheres) * sizeof(CudaMaterial);
 
-    
+    if (width != lastWidth || height != lastHeight) {
+        std::cout << "Resize\n";
+        lastWidth = width;
+        lastHeight = height;
+        CudaResetFrameIndex();
+    }
     cudaMalloc(&devImage, imgBytes);
     if (!devAccumulation) {
         cudaMalloc(&devAccumulation, accumBytes);
-        std::cout << "Resolution changed — freeing and resetting accumulation buffer\n";
+        std::cout << "Resolution changed, freeing and resetting accumulation buffer\n";
     }
     
     cudaMalloc(&devSpheres, sphBytes);
@@ -214,6 +318,18 @@ void RunCudaRayTrace(uint32_t* hostImage, int width, int height, const CudaSpher
     CudaCamera.Right = normalize(cross(worldUp, CudaCamera.ForwardDirection));
     CudaCamera.Up = normalize(cross(CudaCamera.Right, CudaCamera.ForwardDirection));
     CudaCamera.FovY = camera.FovY * 3.14159265f / 180.0f;
+    CudaCamera.Aperture = camera.Aperture;
+    CudaCamera.FocusDistance = camera.FocusDistance;
+
+
+    CudaCube* hcubes = new CudaCube;
+    hcubes->Position = make_float3(100.0f, 0.0f, 100.0f);
+    hcubes->HalfSize = make_float3(1000.0f, 0.0f, 1000.0f);
+    
+    size_t cubeBytes = static_cast<size_t>(1) * sizeof(CudaCube);
+    static CudaCube* devCubes = nullptr;
+    cudaMalloc(&devCubes, cubeBytes);
+    cudaMemcpy(devCubes, hcubes, cubeBytes, cudaMemcpyHostToDevice);
 
     dim3 threads(16, 16);
     dim3 blocks((width + 15) / 16, (height + 15) / 16);
@@ -229,7 +345,8 @@ void RunCudaRayTrace(uint32_t* hostImage, int width, int height, const CudaSpher
         frameIndex,
         bSkyBox,
         maxBounces,
-        samplesPerPixel
+        samplesPerPixel,
+        devCubes
     );
     
 
@@ -245,14 +362,6 @@ void RunCudaRayTrace(uint32_t* hostImage, int width, int height, const CudaSpher
     cudaFree(devSpheres);
     cudaFree(devMaterials);
     //cudaFree(devAccumulation);
-
-    if (width != lastWidth || height != lastHeight) {
-        std::cout << "2\n";
-        lastWidth = width;
-        lastHeight = height;
-        CudaResetFrameIndex();
-    }
-
 }
 
 

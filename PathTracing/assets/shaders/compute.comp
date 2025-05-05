@@ -1,0 +1,239 @@
+/*
+#version 450
+
+// Push constant for input value
+layout(push_constant) uniform PushConstants {
+    int inputValue;
+} pushConstants;
+
+// Output buffer binding
+layout(binding = 0) buffer OutputBuffer {
+    int result;
+};
+
+layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+
+void main() {
+    // Initialize our result
+    int sum = pushConstants.inputValue;
+
+    // Run a for loop that sums numbers 1 to inputValue
+    for (int i = 1; i <= 100000000; i++) {
+        sum += 1;
+    }
+
+    // Store the result in the output buffer
+    result = sum;
+}*/
+
+#version 450
+
+// Input uniforms
+layout(push_constant) uniform PushConstants {
+    vec3 cameraPosition;
+    vec3 cameraForwardDirection;
+    int frameIndex;
+    int maxBounces;
+    int accumulate;
+    int skyboxEnabled;
+};
+
+// Descriptor bindings
+layout(binding = 0) buffer SceneData {
+// Sphere data (position, radius, material index)
+    vec4 spheres[];
+};
+
+layout(binding = 1) buffer MaterialData {
+// Material properties (albedo, roughness, metallic, emission)
+    vec4 materials[];
+};
+
+layout(binding = 2) buffer CameraRayDirections {
+    vec3 rayDirections[];
+};
+
+layout(binding = 3) buffer OutputImage {
+    vec4 accumulation[];
+};
+
+layout(binding = 4, rgba8) uniform writeonly image2D resultImage;
+
+// Work group size
+layout(local_size_x = 16, local_size_y = 16) in;
+
+// Random number generation
+uint wang_hash(inout uint seed) {
+    seed = uint(seed ^ uint(61)) ^ uint(seed >> uint(16));
+    seed *= uint(9);
+    seed = seed ^ (seed >> 4);
+    seed *= uint(0x27d4eb2d);
+    seed = seed ^ (seed >> 15);
+    return seed;
+}
+
+float randomFloat(inout uint seed) {
+    return float(wang_hash(seed)) / 4294967296.0;
+}
+
+vec3 randomInUnitSphere(inout uint seed) {
+    float z = randomFloat(seed) * 2.0 - 1.0;
+    float t = randomFloat(seed) * 2.0 * 3.14159265359;
+    float r = sqrt(max(0.0, 1.0 - z*z));
+    float x = r * cos(t);
+    float y = r * sin(t);
+    return vec3(x, y, z);
+}
+
+// Ray structure
+struct Ray {
+    vec3 origin;
+    vec3 direction;
+};
+
+// Hit payload
+struct HitPayload {
+    float hitDistance;
+    vec3 worldPosition;
+    vec3 worldNormal;
+    int objectIndex;
+};
+
+// Ray-sphere intersection
+HitPayload traceRay(Ray ray) {
+    HitPayload payload;
+    payload.hitDistance = -1.0;
+
+    float hitDistance = 1e30;
+    int objectIndex = -1;
+
+    // Iterate through all spheres
+    for (int i = 0; i < spheres.length(); i++) {
+        vec3 spherePos = spheres[i].xyz;
+        float radius = spheres[i].w;
+
+        vec3 origin = ray.origin - spherePos;
+
+        float a = dot(ray.direction, ray.direction);
+        float b = 2.0 * dot(origin, ray.direction);
+        float c = dot(origin, origin) - radius * radius;
+
+        float discriminant = b * b - 4.0 * a * c;
+        if (discriminant < 0.0)
+        continue;
+
+        float closestT = (-b - sqrt(discriminant)) / (2.0 * a);
+        if (closestT > 0.0 && closestT < hitDistance) {
+            hitDistance = closestT;
+            objectIndex = i;
+        }
+    }
+
+    if (objectIndex == -1)
+    return payload;
+
+    // Calculate hit information
+    vec3 spherePos = spheres[objectIndex].xyz;
+    payload.hitDistance = hitDistance;
+    payload.objectIndex = objectIndex;
+    payload.worldPosition = ray.origin + ray.direction * hitDistance;
+    payload.worldNormal = normalize(payload.worldPosition - spherePos);
+
+    return payload;
+}
+
+// Main raytracing function
+vec3 pathTrace(Ray ray, inout uint seed) {
+    vec3 light = vec3(0.0);
+    vec3 contrib = vec3(1.0);
+
+    for (int i = 0; i < maxBounces; i++) {
+        HitPayload payload = traceRay(ray);
+
+        if (payload.hitDistance < 0.0) {
+            // Sky
+            if (skyboxEnabled == 1)
+            light += contrib * vec3(0.6, 0.7, 0.9);
+            break;
+        }
+
+        // Get material data
+        int sphereIndex = payload.objectIndex;
+        int materialIndex = int(spheres[sphereIndex].w);
+
+        vec3 albedo = materials[materialIndex * 3].rgb;
+        float roughness = materials[materialIndex * 3].a;
+        float metallic = materials[materialIndex * 3 + 1].r;
+        vec3 emissionColor = materials[materialIndex * 3 + 1].gba;
+        float emissionPower = materials[materialIndex * 3 + 2].r;
+
+        // Add emission
+        light += contrib * emissionColor * emissionPower;
+
+        // Sample new direction
+        vec3 N = payload.worldNormal;
+
+        // Diffuse direction
+        vec3 diffuseDir = normalize(N + randomInUnitSphere(seed));
+
+        // Rough specular direction
+        vec3 perturbedN = normalize(N + roughness * randomInUnitSphere(seed));
+        vec3 specularDir = reflect(ray.direction, perturbedN);
+
+        // Blend between diffuse and specular
+        ray.direction = normalize(mix(diffuseDir, specularDir, metallic));
+
+        // Energy conservation
+        vec3 F0 = mix(vec3(0.04), albedo, metallic);
+        vec3 diffuseColor = (1.0 - metallic) * albedo;
+        vec3 specularColor = F0;
+
+        // Update throughput
+        contrib *= (diffuseColor + specularColor);
+
+        // Set new ray origin with bias
+        ray.origin = payload.worldPosition + ray.direction * 0.0001;
+    }
+
+    return light;
+}
+
+void main() {
+    // Get global invocation ID
+    uvec2 pixel = gl_GlobalInvocationID.xy;
+    uvec2 dimensions = imageSize(resultImage);
+
+    if (pixel.x >= dimensions.x || pixel.y >= dimensions.y)
+    return;
+
+    uint index = pixel.y * dimensions.x + pixel.x;
+
+    // Initialize random seed based on pixel position and frame
+    uint seed = uint(pixel.x) * uint(1973) + uint(pixel.y) * uint(9277) + uint(frameIndex) * uint(26699);
+
+    // Get ray from camera
+    Ray ray;
+    ray.origin = cameraPosition;
+    ray.direction = rayDirections[index];
+
+    // Trace path
+    vec3 color = pathTrace(ray, seed);
+
+    // Accumulate result
+    vec4 accumulatedColor;
+
+    if (accumulate == 1 && frameIndex > 1) {
+        accumulatedColor = accumulation[index] + vec4(color, 1.0);
+    } else {
+        accumulatedColor = vec4(color, 1.0);
+    }
+
+    accumulation[index] = accumulatedColor;
+
+    // Normalize by frame count and write to output
+    vec4 finalColor = accumulatedColor / float(frameIndex);
+    finalColor = clamp(finalColor, vec4(0.0), vec4(1.0));
+
+    // Store the result
+    imageStore(resultImage, ivec2(pixel), finalColor);
+}

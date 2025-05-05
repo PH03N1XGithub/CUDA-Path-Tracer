@@ -14,8 +14,10 @@ Camera::Camera()
 	m_VerticalFOV = 45.0f;
 	m_NearClip = 0.1f;
 	m_FarClip = 1000.0f;
-	m_ForwardDirection = glm::vec3(-0.86, -0.33, -0.40);
-	m_Position = glm::vec3(9.8, 4.6, 4.4);
+	//m_ForwardDirection = glm::vec3(-0.86, -0.33, -0.40);
+	m_ForwardDirection = glm::vec3(0.97, -0.13, 0.24);
+	//m_Position = glm::vec3(9.8, 4.6, 4.4);
+	m_Position = glm::vec3(42.58, 3.02, 45.39);
 	m_ViewportWidth = 1920;
 	m_ViewportHeight = 1080;
 	RecalculateProjection();
@@ -58,7 +60,6 @@ bool Camera::OnUpdate(float ts)
 	if (Input::IsKeyDown(KeyCode::LeftShift))
 	{
 		speed *= 4;
-		std::cout << "Shift" << std::endl;
 	}
 	if (Input::IsKeyDown(KeyCode::W))
 	{
@@ -88,6 +89,20 @@ bool Camera::OnUpdate(float ts)
 	else if (Input::IsKeyDown(KeyCode::E))
 	{
 		m_Position += upDirection * speed * ts;
+		moved = true;
+	}
+	glm::vec2 scrollDelta = Walnut::Input::GetMouseScroll();
+	if (scrollDelta.y < 0.0f)
+	{
+		if (m_FocusDistance > 0.0f)
+		{
+			m_FocusDistance--;
+			moved = true;
+		}
+	}
+	else if (scrollDelta.y > 0.0f)
+	{
+		m_FocusDistance++;
 		moved = true;
 	}
 	

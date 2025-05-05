@@ -2,6 +2,8 @@
 #include <glm/glm.hpp>
 #include <vector>
 
+#include "Walnut/Random.h"
+
 struct Material
 {
 	glm::vec3 Albedo{ 1.0f };
@@ -71,9 +73,11 @@ inline Scene::Scene()
 	RedSphere.EmissionColor = RedSphere.Albedo;
 	RedSphere.EmissionPower = 0.0f;
 
+	
+
 	{
 		Sphere sphere;
-		sphere.Position = { 0.0f, 0.0f, 0.0f };
+		sphere.Position = { 0.0f, 1.0f, 0.0f };
 		sphere.Radius = 2.0f;
 		sphere.MaterialIndex = 0;
 		Spheres.push_back(sphere);
@@ -87,7 +91,7 @@ inline Scene::Scene()
 	}
 	{
 		Sphere sphere;
-		sphere.Position = { -3.0f, 0.0f, -6.0f };
+		sphere.Position = { 50.1f, 2.0f, 52.0f };
 		sphere.Radius = 2.0f;
 		sphere.MaterialIndex = 3;
 		Spheres.push_back(sphere);
@@ -95,8 +99,32 @@ inline Scene::Scene()
 	{
 		Sphere sphere;
 		sphere.Position = { 0.0f, -101.0f, 0.0f };
-		sphere.Radius = 100.0f;
+		sphere.Radius = 0.0f;
 		sphere.MaterialIndex = 1;
 		Spheres.push_back(sphere);
 	}
+
+
+	/*for (int i = 0; i < 20 * 20; i++)
+	{
+		int x = i % 20;
+		int z = i / 20;
+
+		Sphere sphere;
+		sphere.Position = { (x + Walnut::Random::Float()) * 4.5f + 20 , 0.5f, (z + Walnut::Random::Float())* 4.5f +20 };
+		sphere.Radius = 0.5f;
+
+		// Create a unique material
+		Material material;
+		material.Albedo = glm::vec3(Walnut::Random::Float(), Walnut::Random::Float(), Walnut::Random::Float());
+		material.Roughness = Walnut::Random::Float();      // [0, 1]
+		material.Metallic = Walnut::Random::Float() < 0.5f ? 0.0f : 1.0f; // 50% chance of being metallic
+
+		// Store material and assign index
+		int materialIndex = static_cast<int>(Materials.size());
+		Materials.push_back(material);
+		sphere.MaterialIndex = materialIndex;
+
+		Spheres.push_back(sphere);
+	}*/
 }
