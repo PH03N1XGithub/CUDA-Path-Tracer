@@ -29,6 +29,20 @@ struct CudaHitPayload
 	float3 WorldPosition; // World position of the hit point
 	float3 WorldNormal;   // Normal at the hit point
 };
+struct float4x4 {
+	float m[4][4];
+
+	__device__ __host__
+	float* operator[](int row) {
+		return m[row];
+	}
+
+	__device__ __host__
+	const float* operator[](int row) const {
+		return m[row];
+	}
+};
+
 
 
 struct CudaCamera {
@@ -43,4 +57,16 @@ struct CudaCamera {
 	float Aperture = 0.1f;         // Controls blur intensity
 	float FocusDistance = 10.0f;   // Distance to the focus plane
 
+
+	// NEW: Matrices
+	float4x4 ViewMatrix;
+	float4x4 InverseViewMatrix;
+	float4x4 ProjectionMatrix;
+	float4x4 InverseProjectionMatrix;
+
+};
+struct CudaCube {
+	float3 Position;     // Center of the cube
+	float3 HalfSize;     // Half-extent in each direction (axis-aligned box)
+	int MaterialIndex;
 };

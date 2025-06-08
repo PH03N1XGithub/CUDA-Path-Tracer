@@ -3,7 +3,7 @@
 #include "Camera.h"
 #include "Ray.h"
 #include "Scene.h"
-#include "cuda.h"
+#include "CudaPathTrace.h"
 #include <memory>
 #include <glm/glm.hpp>
 
@@ -33,8 +33,8 @@ public:
 
 	std::shared_ptr<Walnut::Image> GetFinalImage() const { return m_FinalImage; }
 
-	void ResetFrameIndex() { m_FrameIndex = 1; CudaResetFrameIndex(); }
 	Settings& GetSettings() { return m_Settings; }
+	void ResetFrameIndex();
 
 
 public:
@@ -65,13 +65,13 @@ private:
 
 	uint32_t* m_ImageData = nullptr;
 	glm::vec4* m_AccumulationData = nullptr;
-public:
 	uint32_t m_FrameIndex = 1;
+public:
 	
-	float m_LastSetDataTime = 0.0f;
-	float m_LastRayTraceTime = 0.0f;
+	float LastSetDataTime = 0.0f;
+	float LastRayTraceTime = 0.0f;
 	
-	std::string m_ProsesUnit = WL_RENDERER_PROSES_UNIT;
+	std::string ProsesUnit = WL_RENDERER_PROSES_UNIT;
 };
 
 

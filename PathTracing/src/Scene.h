@@ -15,7 +15,7 @@ struct Material
 	glm::vec3 GetEmission() const { return EmissionColor * EmissionPower; }
 
 
-	operator CudaMaterial() const {
+	explicit operator CudaMaterial() const {
 		CudaMaterial result;
 		result.Albedo = make_float3(Albedo.x, Albedo.y, Albedo.z);
 		result.Emission = make_float3(GetEmission().x, GetEmission().y, GetEmission().z);
@@ -32,7 +32,7 @@ struct Sphere
 
 	int MaterialIndex = 0;
 
-	operator CudaSphere() const {
+	explicit operator CudaSphere() const {
 		CudaSphere result;
 		result.Position = make_float3(Position.x, Position.y, Position.z);
 		result.Radius = Radius;
@@ -105,14 +105,15 @@ inline Scene::Scene()
 	}
 
 
-	/*for (int i = 0; i < 20 * 20; i++)
+	for (int i = 0; i < 20 * 20; i++)
 	{
 		int x = i % 20;
 		int z = i / 20;
 
 		Sphere sphere;
 		sphere.Position = { (x + Walnut::Random::Float()) * 4.5f + 20 , 0.5f, (z + Walnut::Random::Float())* 4.5f +20 };
-		sphere.Radius = 0.5f;
+		sphere.Radius = Walnut::Random::Float() * 1.5f;
+		sphere.Position.y = sphere.Radius;
 
 		// Create a unique material
 		Material material;
@@ -126,5 +127,5 @@ inline Scene::Scene()
 		sphere.MaterialIndex = materialIndex;
 
 		Spheres.push_back(sphere);
-	}*/
+	}
 }

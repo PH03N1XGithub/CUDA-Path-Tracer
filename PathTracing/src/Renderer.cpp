@@ -5,21 +5,21 @@
 #include "Walnut/Random.h"
 #include "Walnut/Application.h"
 #include "Walnut/Timer.h"
-#include "cuda.h"
+#include "CudaPathTrace.h"
 
 namespace Utils {
-
+#if WL_RELEASE
 	static uint32_t ConvertToRGBA(const glm::vec4& color)
 	{
-		uint8_t R = (uint8_t)(color.r * 255.0f);
-		uint8_t G = (uint8_t)(color.g * 255.0f);
-		uint8_t B = (uint8_t)(color.b * 255.0f);
-		uint8_t A = (uint8_t)(color.a * 255.0f);
+		const uint8_t R = static_cast<uint8_t>(color.r * 255.0f);
+		const uint8_t G = static_cast<uint8_t>(color.g * 255.0f);
+		const uint8_t B = static_cast<uint8_t>(color.b * 255.0f);
+		const uint8_t A = static_cast<uint8_t>(color.a * 255.0f);
 
-		uint32_t result = (A << 24) | (B << 16) | (G << 8) | R;
+		const uint32_t result = (A << 24) | (B << 16) | (G << 8) | R;
 		return result;
 	}
-
+#endif
 }
 
 void Renderer::OnResize(uint32_t width, uint32_t height)
@@ -36,10 +36,10 @@ void Renderer::OnResize(uint32_t width, uint32_t height)
 	}
 
 	delete[] m_ImageData;
-	m_ImageData = new uint32_t[width * height];
+	m_ImageData = new uint32_t[static_cast<uint64_t>(width) * height];  // NOLINT(bugprone-implicit-widening-of-multiplication-result)
 
 	delete[] m_AccumulationData;
-	m_AccumulationData = new glm::vec4[width * height];
+	m_AccumulationData = new glm::vec4[static_cast<uint64_t>(width) * height];  // NOLINT(bugprone-implicit-widening-of-multiplication-result)
 
 	m_ImageHorizontalIter.resize(width);
 	m_ImageVerticalIter.resize(height);
@@ -70,11 +70,11 @@ void Renderer::Render(const Scene& scene, const Camera& camera)
 		const Sphere& s = m_ActiveScene->Spheres[i];
 		const Material& m = m_ActiveScene->Materials[s.MaterialIndex];
 
-		c_spheres[i] = s;
-		c_materials[s.MaterialIndex] = m;
+		c_spheres[i] = static_cast<CudaSphere>(s);
+		c_materials[s.MaterialIndex] = static_cast<CudaMaterial>(m);
 	}
-	
-	CudaCamera cudaCamera = Camera::GetGetCudaCamera(*m_ActiveCamera, m_FinalImage->GetWidth(), m_FinalImage->GetHeight());
+
+	const CudaCamera cudaCamera = Camera::GetGetCudaCamera(*m_ActiveCamera, m_FinalImage->GetWidth(), m_FinalImage->GetHeight());
 	
 	RunCudaRayTrace(
 		m_ImageData,
@@ -89,7 +89,7 @@ void Renderer::Render(const Scene& scene, const Camera& camera)
 		m_Settings.maxBounces,
 		m_Settings.samplesPerPixel
 	);
-	m_LastRayTraceTime = timer.ElapsedMillis();
+	LastRayTraceTime = timer.ElapsedMillis();
 #else
 #if WL_RELEASE
 
@@ -138,7 +138,7 @@ void Renderer::Render(const Scene& scene, const Camera& camera)
 	{
 		Walnut::Timer timer;
 		m_FinalImage->SetData(m_ImageData);
-		m_LastSetDataTime = timer.ElapsedMillis();
+		LastSetDataTime = timer.ElapsedMillis();
 	}
 	
 	if (m_Settings.Accumulate)
@@ -147,11 +147,22 @@ void Renderer::Render(const Scene& scene, const Camera& camera)
 		m_FrameIndex = 1;
 }
 
+void Renderer::ResetFrameIndex()
+{
+	m_FrameIndex = 1;
+	CudaResetFrameIndex(); 
+}
+
 
 inline glm::vec3 operator*(const glm::vec3& v, bool b) {
 	return b ? v : glm::vec3(0.0f);
 }
 
+
+// ----------------------------------------------------------------------------------
+// CPU Base Functions
+// ----------------------------------------------------------------------------------
+#pragma region CPU Base Functions
 glm::vec4 Renderer::PerPixel(uint32_t x, uint32_t y)
 {
 	Ray ray;
@@ -266,3 +277,4 @@ Renderer::HitPayload Renderer::Miss(const Ray& ray)
 	payload.HitDistance = -1.0f;
 	return payload;
 }
+#pragma endregion

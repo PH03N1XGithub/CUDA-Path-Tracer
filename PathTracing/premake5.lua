@@ -20,11 +20,13 @@ project "PathTracing"
       "../Walnut/Walnut/src",
 
       "%{IncludeDir.VulkanSDK}",
-      "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.8/include"
+      --"C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.8/include"
+      "%{os.getenv('CUDA_PATH')}/include",
    }
 
    libdirs {
-      "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.8/lib/x64"
+      --"C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.8/lib/x64"
+      "%{os.getenv('CUDA_PATH')}/lib/x64"
    }
 
    links

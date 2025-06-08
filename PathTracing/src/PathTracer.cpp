@@ -52,90 +52,73 @@ public:
 		ImGui::GetStyle().WindowRounding = 5.0f; // Rounded window corners
 		ImGui::GetStyle().FrameRounding = 3.0f;  // Rounded frame corners for buttons, inputs, etc.
 		
-		
-		if (false)
-		{
-			ImGui::Begin("Scene");
-			
-			ImGui::End();
-		}
 
 		if (ImGui::BeginMenuBar())
 		{
+			ImGui::SetNextWindowBgAlpha(0.3f);
+			bool bShouldReset = false;
 			// Begin a menu within the menu bar
-			if (ImGui::BeginMenu("Settings")) // "asd" is the name of the menu
+			if (ImGui::BeginMenu("Settings")) 
 			{
-				
 				ImGui::Text("FPS: %.3f", 1000/m_LastRenderTime);
 				ImGui::Text("Last render: %.3fms", m_LastRenderTime);
-				ImGui::Text((m_Renderer.m_ProsesUnit + " Time: %.3fms").c_str(), m_Renderer.m_LastRayTraceTime);
-				ImGui::Text("CPU: %.3fms", m_Renderer.m_LastSetDataTime);
-				ImGui::Text("Accumulation Data: %d", m_Renderer.m_FrameIndex);
-				glm::vec3 cameraDir = m_Camera.GetDirection();
-				glm::vec3 cameraPos = m_Camera.GetPosition();
+				ImGui::Text((m_Renderer.ProsesUnit + " Time: %.3fms").c_str(), m_Renderer.LastRayTraceTime);
+				ImGui::Text("CPU: %.3fms", m_Renderer.LastSetDataTime);
+				//ImGui::Text("Accumulation Data: %d", m_Renderer.m_FrameIndex);
+				const glm::vec3 cameraDir = m_Camera.GetDirection();
+				const glm::vec3 cameraPos = m_Camera.GetPosition();
 				ImGui::Text("Camera direction: (%.2f, %.2f, %.2f)",cameraDir.x, cameraDir.y, cameraDir.z);
 				ImGui::Text("Camera Position: (%.2f, %.2f, %.2f)",cameraPos.x, cameraPos.y, cameraPos.z);
 				ImGui::Text("Object Count: %d", m_Scene.Spheres.size());
 			
 				if (ImGui::Button("Add Sphere"))
-				{
-					constexpr Sphere sphere;
-					m_Scene.Spheres.push_back(sphere);
-				}
+					m_Scene.Spheres.emplace_back();
+				
 				if (ImGui::Button("Add Material"))
-				{
-					Material& red_sphere = m_Scene.Materials.emplace_back();
-				}
+					m_Scene.Materials.emplace_back();
+				
 			
 				ImGui::InputInt("Max Bounce", &m_Renderer.GetSettings().maxBounces);
 			
 				if (ImGui::InputInt("SPP", &m_Renderer.GetSettings().samplesPerPixel) && m_Renderer.GetSettings().samplesPerPixel == 0)
-				{
 					m_Renderer.GetSettings().samplesPerPixel = 1;
-				}
-				if (ImGui::DragFloat("Aperture",&m_Camera.GetAperture(),0.1f,0,FLT_MAX))
-				{
-					m_Renderer.ResetFrameIndex();
-				}
-				if (ImGui::DragFloat("FocusDistance", &m_Camera.GetFocusDistance(),0.1f,0,FLT_MAX))
-				{
-					m_Renderer.ResetFrameIndex();
-				}
+				
+				if (ImGui::DragFloat("Aperture",&m_Camera.GetAperture(),0.01f,0,0.3f))
+					bShouldReset = true;
+				
+				if (ImGui::DragFloat("FocusDistance", &m_Camera.GetFocusDistance(),0.1f,1.0f,FLT_MAX))
+					bShouldReset = true;
+				
 			
 				ImGui::Checkbox("Accumulate", &m_Renderer.GetSettings().Accumulate);
-				ImGui::Checkbox("SkyBox", &m_Renderer.GetSettings().SkyBox);
+				if (ImGui::Checkbox("SkyBox", &m_Renderer.GetSettings().SkyBox))
+					bShouldReset = true;
 			
 				if (ImGui::Button("Reset"))
 					m_Renderer.ResetFrameIndex();
+				
 
 				ImGui::EndMenu();
 			}
+			ImGui::SetNextWindowBgAlpha(0.3f);
 			if (ImGui::BeginMenu("Scene Inspector"))
 			{
 
-				ImVec2 size = ImVec2(430, 450);
+				const ImVec2 size = ImVec2(430, 450);
 				ImGui::BeginChild("Scene Inspector", size, false);
-
-				
-
-				
 				
 				for (size_t i = 0; i < m_Scene.Spheres.size(); i++)
 				{
 					ImGui::PushID(i);
-	
 					Sphere& sphere = m_Scene.Spheres[i];
 					ImGui::Text("Sphere %d", i);
 					if (ImGui::DragFloat3("Position", glm::value_ptr(sphere.Position), 0.1f) ||
 						ImGui::DragFloat("Radius", &sphere.Radius, 0.1f) ||
 						ImGui::DragInt("Material", &sphere.MaterialIndex, 1.0f, 0, (int)m_Scene.Materials.size() - 1))
 					{
-						m_Renderer.ResetFrameIndex();
+						bShouldReset = true;
 					}
-				
-	
 					ImGui::Separator();
-	
 					ImGui::PopID();
 				}
 		
@@ -153,9 +136,8 @@ public:
 						ImGui::ColorEdit3("Emission Color", glm::value_ptr(material.EmissionColor))||
 						ImGui::DragFloat("Emission Power", &material.EmissionPower, 0.05f, 0.0f, FLT_MAX))
 					{
-						m_Renderer.ResetFrameIndex();
+						bShouldReset = true;
 					}
-					
 					ImGui::Separator();
 					ImGui::PopID();
 				}
@@ -165,18 +147,22 @@ public:
 			ImGui::Text("FPS: %.f", 1000/m_LastRenderTime); // Display FPS in the menu bar
 			// End the menu bar
 			ImGui::EndMenuBar();
+			if (bShouldReset)
+				m_Renderer.ResetFrameIndex();
 		}
 
 		
-
+		
 		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
-		ImGui::Begin("Viewport", nullptr,ImGuiDockNodeFlags_AutoHideTabBar);
+		const ImVec2 windowSize = ImVec2(800, 600); // Width, Height
+		ImGui::SetNextWindowSize(windowSize, ImGuiCond_FirstUseEver);
+		ImGui::Begin("Viewport");
 
 		m_ViewportWidth = ImGui::GetContentRegionAvail().x;
 		m_ViewportHeight = ImGui::GetContentRegionAvail().y;
 
 		if (const auto image = m_Renderer.GetFinalImage())
-			ImGui::Image(image->GetDescriptorSet(), { (float)image->GetWidth(), (float)image->GetHeight() },
+			ImGui::Image(image->GetDescriptorSet(), { static_cast<float>(image->GetWidth()), static_cast<float>(image->GetHeight()) },
 				ImVec2(0, 1), ImVec2(1, 0));
 
 		ImGui::End();
@@ -188,12 +174,12 @@ public:
 	void Render()
 	{
 		Timer timer;
-
+		
 		m_Renderer.OnResize(m_ViewportWidth, m_ViewportHeight);
 		m_Camera.OnResize(m_ViewportWidth, m_ViewportHeight);
 		m_Renderer.Render(m_Scene, m_Camera);
 
-		 m_LastRenderTime = timer.ElapsedMillis();
+		m_LastRenderTime = timer.ElapsedMillis();
 	}
 private:
 	Renderer m_Renderer;
@@ -201,7 +187,7 @@ private:
 	Scene m_Scene;
 	uint32_t m_ViewportWidth = 0, m_ViewportHeight = 0;
 
-	float m_LastRenderTime = 0.0f;
+	float m_LastRenderTime = 0;
 };
 
 

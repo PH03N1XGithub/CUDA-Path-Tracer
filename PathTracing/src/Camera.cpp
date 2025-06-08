@@ -11,7 +11,7 @@ using namespace Walnut;
 
 Camera::Camera()
 {
-	m_VerticalFOV = 45.0f;
+	m_VerticalFOV = 20.0f;
 	m_NearClip = 0.1f;
 	m_FarClip = 1000.0f;
 	//m_ForwardDirection = glm::vec3(-0.86, -0.33, -0.40);
@@ -20,6 +20,8 @@ Camera::Camera()
 	m_Position = glm::vec3(42.58, 3.02, 45.39);
 	m_ViewportWidth = 1920;
 	m_ViewportHeight = 1080;
+	RecalculateView();
+	RecalculateRayDirections();
 	RecalculateProjection();
 }
 
@@ -30,6 +32,8 @@ Camera::Camera(float verticalFOV, float nearClip, float farClip)
 	m_Position = glm::vec3(9.8, 4.6, 4.4);
 	m_ViewportWidth = 1920;
 	m_ViewportHeight = 1080;
+	RecalculateView();
+	RecalculateRayDirections();
 	RecalculateProjection();
 }
 
@@ -44,7 +48,6 @@ bool Camera::OnUpdate(float ts)
 		Input::SetCursorMode(CursorMode::Normal);
 		return false;
 	}
-
 	
 	Input::SetCursorMode(CursorMode::Locked);
 
@@ -54,9 +57,7 @@ bool Camera::OnUpdate(float ts)
 	glm::vec3 rightDirection = glm::cross(m_ForwardDirection, upDirection);
 
 	float speed = 5.0f;
-
 	// Movement
-
 	if (Input::IsKeyDown(KeyCode::LeftShift))
 	{
 		speed *= 4;
@@ -94,7 +95,7 @@ bool Camera::OnUpdate(float ts)
 	glm::vec2 scrollDelta = Walnut::Input::GetMouseScroll();
 	if (scrollDelta.y < 0.0f)
 	{
-		if (m_FocusDistance > 0.0f)
+		if (m_FocusDistance > 1.0f)
 		{
 			m_FocusDistance--;
 			moved = true;
@@ -121,13 +122,12 @@ bool Camera::OnUpdate(float ts)
 		RecalculateProjection();
 		moved = true;
 	}
-
-
+	
 	// Rotation
 	if (delta.x != 0.0f || delta.y != 0.0f)
 	{
-		float pitchDelta = delta.y * GetRotationSpeed();
-		float yawDelta = delta.x * GetRotationSpeed();
+		float pitchDelta = delta.y * m_RotationSpeed;
+		float yawDelta = delta.x * m_RotationSpeed;
 
 		glm::quat q = glm::normalize(glm::cross(glm::angleAxis(-pitchDelta, rightDirection),
 			glm::angleAxis(-yawDelta, glm::vec3(0.f, 1.0f, 0.0f))));
@@ -145,7 +145,7 @@ bool Camera::OnUpdate(float ts)
 	return moved;
 }
 
-void Camera::OnResize(uint32_t width, uint32_t height)
+void Camera::OnResize(const uint32_t width, const uint32_t height)
 {
 	if (width == m_ViewportWidth && height == m_ViewportHeight)
 		return;
@@ -157,14 +157,11 @@ void Camera::OnResize(uint32_t width, uint32_t height)
 	RecalculateRayDirections();
 }
 
-float Camera::GetRotationSpeed()
-{
-	return 0.6f;
-}
+
 
 void Camera::RecalculateProjection()
 {
-	m_Projection = glm::perspectiveFov(glm::radians(m_VerticalFOV), (float)m_ViewportWidth, (float)m_ViewportHeight, m_NearClip, m_FarClip);
+	m_Projection = glm::perspectiveFov(glm::radians(m_VerticalFOV), static_cast<float>(m_ViewportWidth), static_cast<float>(m_ViewportHeight), m_NearClip, m_FarClip);
 	m_InverseProjection = glm::inverse(m_Projection);
 }
 
@@ -182,7 +179,7 @@ void Camera::RecalculateRayDirections()
 	{
 		for (uint32_t x = 0; x < m_ViewportWidth; x++)
 		{
-			glm::vec2 coord = { (float)x / (float)m_ViewportWidth, (float)y / (float)m_ViewportHeight };
+			glm::vec2 coord = { static_cast<float>(x) / static_cast<float>(m_ViewportWidth), static_cast<float>(y) / static_cast<float>(m_ViewportHeight) };
 			coord = coord * 2.0f - 1.0f; // -1 -> 1
 
 			glm::vec4 target = m_InverseProjection * glm::vec4(coord.x, coord.y, 1, 1);
@@ -190,4 +187,46 @@ void Camera::RecalculateRayDirections()
 			m_RayDirections[x + y * m_ViewportWidth] = rayDirection;
 		}
 	}
+}
+
+CudaCamera Camera::GetGetCudaCamera(const Camera& camera, uint32_t width, uint32_t height) {
+	CudaCamera cudaCamera;
+	glm::mat4 view = camera.GetView();
+
+	// Position and direction of the camera
+	cudaCamera.Position = make_float3(camera.GetPosition().x, camera.GetPosition().y, camera.GetPosition().z);
+	cudaCamera.ForwardDirection = make_float3(camera.GetDirection().x, camera.GetDirection().y, camera.GetDirection().z);
+
+	// Up and Right vectors
+	cudaCamera.Up = make_float3(view[1][0], view[1][1], view[1][2]);
+	cudaCamera.Right = make_float3(view[0][0], view[0][1], view[0][2]);
+
+	// Camera settings
+	cudaCamera.FovY = camera.m_VerticalFOV * (PI / DEGREES180);
+	cudaCamera.AspectRatio = static_cast<float>(width) / static_cast<float>(height);
+	cudaCamera.NearClip = camera.m_NearClip;
+	cudaCamera.FarClip = camera.m_FarClip;
+	cudaCamera.Aperture = camera.m_Aperture;
+	cudaCamera.FocusDistance = camera.m_FocusDistance;
+
+	// Copy matrices
+	cudaCamera.ViewMatrix = ConvertMat4ToFloat4x4(camera.GetView());
+	cudaCamera.InverseViewMatrix = ConvertMat4ToFloat4x4(camera.GetInverseView());
+	cudaCamera.ProjectionMatrix = ConvertMat4ToFloat4x4(camera.GetProjection());
+	cudaCamera.InverseProjectionMatrix = ConvertMat4ToFloat4x4(camera.GetInverseProjection());
+
+	return cudaCamera;
+}
+
+float4x4 Camera::ConvertMat4ToFloat4x4(const glm::mat4& mat)
+{
+	float4x4 result;
+	for (int row = 0; row < 4; ++row)
+	{
+		for (int col = 0; col < 4; ++col)
+		{
+			result.m[row][col] = mat[col][row];
+		}
+	}
+	return result;
 }

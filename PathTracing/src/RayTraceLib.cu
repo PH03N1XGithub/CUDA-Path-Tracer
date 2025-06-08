@@ -1,3 +1,6 @@
+#pragma once
+#include "CudaStructs.h"
+
 // ----------------------------------------------------------------------------------
 // Operator overloads
 // ----------------------------------------------------------------------------------
@@ -38,6 +41,16 @@ __host__ __device__ inline float3 operator*(const float3& v, float s) {
     return make_float3(v.x * s, v.y * s, v.z * s);
 }
 
+__device__ __host__ inline float4& operator/=(float4& v, float scalar) {
+    float inv = 1.0f / scalar;
+    v.x *= inv;
+    v.y *= inv;
+    v.z *= inv;
+    v.w *= inv;
+    return v;
+}
+
+
 // ----------------------------------------------------------------------------------
 // Math helpers
 // ----------------------------------------------------------------------------------
@@ -76,10 +89,10 @@ __host__ __device__ inline float3 normalize(const float3& v, float epsilon = 1e-
 }
 
 __host__ __device__ inline uint32_t PackRGBA(uint8_t r, uint8_t g, uint8_t b, uint8_t a = 255) {
-    return (uint32_t(a) << 24)
-         | (uint32_t(b) << 16)
-         | (uint32_t(g) << 8)
-         | uint32_t(r);
+    return (static_cast<uint32_t>(a) << 24)
+         | (static_cast<uint32_t>(b) << 16)
+         | (static_cast<uint32_t>(g) << 8)
+         | static_cast<uint32_t>(r);
 }
 
 __device__ inline float RandomFloat(uint32_t& seed) {
@@ -107,4 +120,21 @@ __host__ __device__ inline float3 lerp(const float3& a, const float3& b, float t
 
 __host__ __device__ inline float3 reflect(const float3& I, const float3& N) {
     return I - 2.0f * dot3(N, I) * N;
+}
+
+__device__ inline float4 mul(const float4x4& m, const float4& v) {
+    return make_float4(
+        m[0][0]*v.x + m[0][1]*v.y + m[0][2]*v.z + m[0][3]*v.w,
+        m[1][0]*v.x + m[1][1]*v.y + m[1][2]*v.z + m[1][3]*v.w,
+        m[2][0]*v.x + m[2][1]*v.y + m[2][2]*v.z + m[2][3]*v.w,
+        m[3][0]*v.x + m[3][1]*v.y + m[3][2]*v.z + m[3][3]*v.w
+    );
+}
+
+
+__device__ inline void swap(float& a, float& b) noexcept
+{
+    const float temp = a;
+    a = b;
+    b = temp;
 }
